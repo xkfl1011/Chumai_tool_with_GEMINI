@@ -1,0 +1,108 @@
+(async function() {
+    let playData = [];
+    let forms = document.querySelectorAll('form[action*="sendMusicDetail"]');
+
+    if (forms.length === 0) {
+        alert("곡 정보를 찾을 수 없습니다. 곡 목록이 표시된 페이지에서 실행해주세요.");
+        return;
+    }
+
+    console.log(`총 ${forms.length}개의 곡을 수집합니다. (안전 모드 켜짐)`);
+    console.log("⚠️ 창을 닫지 마세요! 중간에 튕기거나 로그인이 풀려도 그때까지의 데이터는 자동 저장됩니다.");
+
+    // 난이도별 블록 클래스 이름
+    const diffMap = [
+        { name: "BASIC", className: "bg_basic" },
+        { name: "ADVANCED", className: "bg_advanced" },
+        { name: "EXPERT", className: "bg_expert" },
+        { name: "MASTER", className: "bg_master" },
+        { name: "ULTIMA", className: "bg_ultima" }
+    ];
+
+    for (let i = 0; i < forms.length; i++) {
+        let form = forms[i];
+        let titleElement = form.querySelector('.music_title');
+        let title = titleElement ? titleElement.innerText.trim() : `Unknown_Song_${i}`;
+
+        try {
+            // 백그라운드 상세 페이지 접속
+            let response = await fetch(form.action, {
+                method: 'POST',
+                body: new FormData(form)
+            });
+
+            // 통신 에러나 로그인 화면으로 튕기면 즉시 중단하고 저장
+            if (!response.ok || response.url.includes('login')) {
+                console.warn(`❌ [경고] 연결이 끊겼습니다! 지금까지 모은 ${playData.length}개의 데이터를 저장합니다.`);
+                break; 
+            }
+
+            let text = await response.text();
+            if (text.includes('login_box') || text.includes('SEGA ID')) {
+                 console.warn(`❌ [경고] 세션이 만료되었습니다! 지금까지 모은 ${playData.length}개의 데이터를 저장합니다.`);
+                 break;
+            }
+
+            let parser = new DOMParser();
+            let doc = parser.parseFromString(text, 'text/html');
+            
+            // 곡 하나당 저장될 데이터 구조
+            let songData = { 
+                "title": title, 
+                "totalPlayCount": 0,
+                "details": {} 
+            };
+            let hasRecord = false;
+
+            // 각 난이도별로 구역을 찾아서 플레이 횟수 추출
+            for (let diff of diffMap) {
+                let diffBlock = doc.querySelector(`.${diff.className}`);
+                if (diffBlock) {
+                    // 해당 난이도 구역 안에서 플레이 횟수 숫자 찾기
+                    let match = diffBlock.innerText.match(/(?:PLAY\s*COUNT|プレイ回数|Play\s*Count)[^\d]*(\d+)/i);
+                    if (match && match[1]) {
+                        let count = parseInt(match[1], 10);
+                        // 0회가 아니면 상세 기록에 넣고, 총합에 더하기
+                        if (count > 0) {
+                            songData.details[diff.name] = count;
+                            songData.totalPlayCount += count;
+                            hasRecord = true;
+                        }
+                    }
+                }
+            }
+
+            // 한 번이라도 플레이한 기록이 있다면 데이터 배열에 추가
+            if(hasRecord) {
+                playData.push(songData);
+                console.log(`[${i + 1} / ${forms.length}] ${title} : 총 ${songData.totalPlayCount}회`);
+            } else {
+                console.log(`[${i + 1} / ${forms.length}] ${title} : 0회 (건너뜀)`);
+            }
+
+            // 서버 차단 방지를 위한 0.6초 대기
+            await new Promise(resolve => setTimeout(resolve, 600));
+
+        } catch (error) {
+            console.error(`❌ 에러 발생! 지금까지의 데이터를 안전하게 저장합니다.`, error);
+            break;
+        }
+    }
+
+    // 최종 결과 JSON 다운로드
+    if (playData.length > 0) {
+        let jsonString = JSON.stringify(playData, null, 2);
+        let blob = new Blob([jsonString], { type: "application/json" });
+        let url = URL.createObjectURL(blob);
+        let a = document.createElement('a');
+        a.href = url;
+        a.download = `chunithm_playcount_${playData.length}songs.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        console.log(`🎉 추출 완료! 총 ${playData.length}곡의 데이터가 성공적으로 저장되었습니다.`);
+    } else {
+        alert("저장할 플레이 기록이 없습니다. 로그인이 정상적으로 되어 있는지 확인해 주세요.");
+    }
+})();

@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>maimai Custom Plate Generator</title>
+  
+  <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@700;900&family=Noto+Sans+KR:wght@700;900&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'M PLUS Rounded 1c', 'Noto Sans KR', sans-serif;
+    }
+
+    body {
+      background-color: #f5f6fa;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 40px 20px;
+      gap: 30px;
+    }
+
+    .editor-panel {
+      background: #ffffff;
+      padding: 25px;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+      width: 100%;
+      max-width: 800px;
+    }
+    .editor-panel h3 {
+      margin-bottom: 20px;
+      color: #6c5ce7;
+      font-size: 1.3rem;
+      border-left: 4px solid #6c5ce7;
+      padding-left: 10px;
+    }
+    .input-row {
+      display: flex;
+      gap: 15px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .input-group {
+      display: flex;
+      flex: 1;
+      min-width: 320px;
+      align-items: center;
+      gap: 10px;
+    }
+    .input-group label {
+      width: 105px;
+      font-weight: bold;
+      font-size: 0.9rem;
+      color: #444;
+      flex-shrink: 0;
+    }
+    .input-group input[type="text"] {
+      flex-grow: 1;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      outline: none;
+    }
+    .input-group input[type="file"] {
+      flex-grow: 1;
+      font-size: 0.9rem;
+    }
+    .input-group input.color-input {
+      max-width: 130px;
+      font-family: monospace;
+      font-weight: bold;
+      letter-spacing: 1px;
+    }
+
+    .radio-group {
+      display: flex;
+      gap: 15px;
+      align-items: center;
+    }
+    .radio-group label {
+      font-weight: normal;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+    .btn {
+      padding: 14px;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .btn:active { transform: scale(0.98); }
+    
+    .btn-save { flex: 1; background: #e1bee7; color: #6a1b9a; }
+    .btn-save:hover { background: #ce93d8; }
+    
+    .btn-load { flex: 1; background: #b3e5fc; color: #0277bd; }
+    .btn-load:hover { background: #81d4fa; }
+    
+    .btn-download { width: 100%; margin-top: 10px; background: #6c5ce7; color: white; }
+    .btn-download:hover { background: #5b4cc4; }
+
+    /* 🖼️ 메인 플레이트 디자인 */
+    .jacket-plate {
+      position: relative;
+      width: 100%;
+      max-width: 750px;
+      background: #ffffff;
+      border: 4px solid #b388ff;
+      border-radius: 28px;
+      padding: 16px 20px; 
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+
+    .plate-bg-layer {
+      position: absolute;
+      top: 6px; left: 6px; right: 6px; bottom: 6px; 
+      background: linear-gradient(180deg, #ba68c8 0%, #ab47bc 100%);
+      border-radius: 20px; 
+      z-index: 0;
+    }
+
+    .plate-inner {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      gap: 20px; 
+      align-items: center; 
+    }
+
+    .jacket-wrapper {
+      flex-shrink: 0;
+      width: 156px;
+      height: 156px;
+      border: 3px solid #ffffff;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+      line-height: 0;
+      background-color: #333;
+    }
+    .jacket-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .right-panel {
+      display: flex;
+      flex-direction: column;
+      flex-grow: 1;
+      gap: 16px; 
+      justify-content: center;
+    }
+
+    .category-wrapper {
+      display: flex;
+      justify-content: flex-end; 
+    }
+
+    .category-tab {
+      background: linear-gradient(180deg, #e1bee7 0%, #b39ddb 100%);
+      border: 3px solid #ffffff;
+      border-radius: 30px;
+      padding: 4px 32px;
+      color: #ffffff;
+      font-weight: 900;
+      font-size: 1.25rem;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      min-width: 60px;
+      min-height: 38px;
+    }
+
+    .song-info {
+      background-color: rgba(0, 0, 0, 0.15);
+      padding: 14px 20px;
+      border-radius: 16px;
+      background-clip: padding-box; /* 🌟 html2canvas 모서리 깨짐 현상 해결 */
+      color: #ffffff;
+    }
+
+    .song-title {
+      font-size: 2.1rem; 
+      font-weight: 900;
+      margin-bottom: 4px;
+      text-shadow: 1px 1px 3px rgba(0,0,0,0.4);
+      line-height: 1.1;
+      min-height: 37px; /* 🌟 값이 비어있어도 레이아웃 유지 */
+    }
+    .divider {
+      border-bottom: 2px dotted rgba(255, 255, 255, 0.6);
+      margin: 8px 0;
+    }
+    .artist-section {
+      display: flex;
+      flex-direction: column;
+    }
+    .artist-label {
+      font-size: 0.75rem;
+      font-weight: 900;
+      opacity: 0.9;
+    }
+    .artist-name {
+      font-size: 1.1rem;
+      font-weight: 700;
+      min-height: 20px; /* 🌟 값이 비어있어도 레이아웃 유지 */
+    }
+
+    .bottom-bar {
+      display: flex;
+      justify-content: flex-end; 
+      align-items: center;
+      gap: 15px; 
+    }
+
+    .diff-box {
+      min-width: 75px;
+      width: auto;
+      height: 48px;
+      padding: 0 12px;
+      border-radius: 10px;
+      border: 2px solid #ffffff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-weight: 900;
+      font-size: 1.6rem;
+      color: #ffffff;
+      background: #9575cd;
+      border-color: #9575cd;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.2); /* 🌟 inset 그림자 제거로 큐브 현상 해결 */
+      background-clip: padding-box; /* 🌟 html2canvas 모서리 깨짐 현상 해결 */
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+      transition: background 0.1s, border-color 0.1s;
+    }
+
+    .diff-plus { font-size: 0.6em; display: inline-block; transform: translateY(-0.35em); margin-left: 1px; }
+    .diff-decimal { font-size: 0.75em; }
+    .diff-stacked-wrap { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; margin-left: 3px; transform: translateY(-0.05em); }
+    .diff-stacked-plus { font-size: 0.55em; line-height: 0.9; }
+    .diff-stacked-dec { font-size: 0.65em; line-height: 0.9; }
+
+    .version-badge {
+      display: flex; align-items: center; justify-content: center;
+      height: 42px; border-radius: 25px; font-weight: 900; letter-spacing: -1.5px;
+      padding: 0 20px; font-size: 1.5rem;
+    }
+    .badge-dx { background-color: #ffffff; box-shadow: 0 4px 0px #cccccc; border: 1px solid #eeeeee; }
+    .badge-dx span { display: inline-block; transform: scaleX(1.1); }
+    .badge-std { background-color: #4bb4ff; color: #ffffff; box-shadow: 0 4px 0px #0a56a6; letter-spacing: -1px; }
+  </style>
+</head>
+<body>
+
+  <!-- 🛠️ 편집기 패널 -->
+  <div class="editor-panel">
+    <h3>플레이트 실시간 편집기</h3>
+    
+    <div class="input-row">
+      <div class="input-group">
+        <label>곡 제목:</label>
+        <input type="text" id="input-title" value="" placeholder="곡 제목" oninput="updatePlate()">
+      </div>
+      <div class="input-group">
+        <label>아티스트:</label>
+        <input type="text" id="input-artist" value="" placeholder="아티스트" oninput="updatePlate()">
+      </div>
+    </div>
+
+    <div class="input-row">
+      <div class="input-group">
+        <label>카테고리:</label>
+        <input type="text" id="input-category" value="" placeholder="카테고리" oninput="updatePlate()">
+      </div>
+      <div class="input-group">
+        <label>카테고리 색상:</label>
+        <input type="text" id="input-cat-start" class="color-input" value="#e1bee7" oninput="updatePlate()">
+        <label style="width: auto; margin-left: 5px;">~</label>
+        <input type="text" id="input-cat-end" class="color-input" value="#b39ddb" oninput="updatePlate()">
+      </div>
+    </div>
+
+    <div class="input-row">
+      <div class="input-group">
+        <label>자켓 파일:</label>
+        <input type="file" id="input-image-file" accept="image/*" onchange="loadLocalImage(event)">
+      </div>
+      <div class="input-group">
+        <label>바깥 테두리:</label>
+        <input type="text" id="input-border-color" class="color-input" value="#b388ff" oninput="updatePlate()">
+        <label style="width: auto; margin-left: 5px;">두께:</label>
+        <input type="text" id="input-border-width" value="4" oninput="updatePlate()" style="max-width: 50px; text-align: center;">
+        <span style="font-size: 0.9rem; color: #666;">px</span>
+      </div>
+    </div>
+
+    <div class="input-row">
+      <div class="input-group">
+        <label>메인 배경색:</label>
+        <input type="text" id="input-bg-start" class="color-input" value="#ba68c8" oninput="updatePlate()">
+        <label style="width: auto; margin-left: 10px;">~</label>
+        <input type="text" id="input-bg-end" class="color-input" value="#ab47bc" oninput="updatePlate()">
+      </div>
+      <div class="input-group">
+        <label>텍스트 정보창:</label>
+        <input type="text" id="input-text-bg" class="color-input" value="rgba(0,0,0,0.15)" oninput="updatePlate()">
+      </div>
+    </div>
+
+    <div class="input-row">
+      <div class="input-group">
+        <label>난이도 값:</label>
+        <input type="text" id="input-diff-text" value="" placeholder="예: 14+.9" oninput="updatePlate()" style="max-width: 80px; margin-right: 10px;">
+        <label style="width: auto;">난이도 색상:</label>
+        <input type="text" id="input-diff-color" class="color-input" value="#9575cd" oninput="updatePlate()">
+      </div>
+      
+      <div class="input-group" style="padding-left: 10px;">
+        <label>버전 타입:</label>
+        <div class="radio-group">
+          <label><input type="radio" name="logo-type" value="dx" checked onchange="updatePlate()"> 디럭스</label>
+          <label><input type="radio" name="logo-type" value="std" onchange="updatePlate()"> 스탠다드</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="button-row">
+      <button class="btn btn-save" onclick="savePreset()">💾 프리셋 저장 (JSON)</button>
+      <button class="btn btn-load" onclick="document.getElementById('preset-upload').click()">📂 프리셋 불러오기</button>
+      <input type="file" id="preset-upload" accept=".json" style="display: none;" onchange="loadPreset(event)">
+    </div>
+    
+    <button class="btn btn-download" onclick="downloadPNG()">고화질 PNG 이미지로 다운로드</button>
+  </div>
+
+  <!-- 🖼️ 렌더링 플레이트 화면 -->
+  <div id="capture-target" class="jacket-plate">
+    <div id="plate-bg" class="plate-bg-layer"></div>
+    
+    <div class="plate-inner">
+      <div class="jacket-wrapper">
+        <img id="plate-img" src="" alt="" class="jacket-img">
+      </div>
+      
+      <div class="right-panel">
+        <div class="category-wrapper">
+          <div id="plate-category" class="category-tab"></div>
+        </div>
+        
+        <div id="plate-text-box" class="song-info">
+          <h2 id="plate-title" class="song-title"></h2>
+          <div class="divider"></div>
+          <div class="artist-section">
+            <span class="artist-label">ARTIST:</span>
+            <span id="plate-artist" class="artist-name"></span>
+          </div>
+        </div>
+        
+        <div class="bottom-bar">
+          <div id="badge-dx" class="version-badge badge-dx">
+            <span style="color:#ff3b30;">で</span>
+            <span style="color:#ff9500;">ら</span>
+            <span style="color:#ffcc00;">っ</span>
+            <span style="color:#4cd964;">く</span>
+            <span style="color:#34aadc;">す</span>
+          </div>
+          <div id="badge-std" class="version-badge badge-std" style="display: none;">
+            スタンダード
+          </div>
+          <div id="plate-diff" class="diff-box"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ⚙️ 스크립트 -->
+  <script>
+    function loadLocalImage(event) {
+      const file = event.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          document.getElementById('plate-img').src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+
+    function formatColor(val) {
+      let trimmed = val.trim();
+      if (!trimmed) return '';
+      if (!trimmed.startsWith('#') && !trimmed.toLowerCase().startsWith('rgb') && !trimmed.toLowerCase().startsWith('hsl')) {
+        return '#' + trimmed;
+      }
+      return trimmed;
+    }
+
+    function updatePlate() {
+      document.getElementById('plate-title').innerText = document.getElementById('input-title').value;
+      document.getElementById('plate-artist').innerText = document.getElementById('input-artist').value;
+      document.getElementById('plate-category').innerText = document.getElementById('input-category').value;
+      
+      let diffColor = formatColor(document.getElementById('input-diff-color').value);
+      let bgStart = formatColor(document.getElementById('input-bg-start').value);
+      let bgEnd = formatColor(document.getElementById('input-bg-end').value);
+      let catStart = formatColor(document.getElementById('input-cat-start').value);
+      let catEnd = formatColor(document.getElementById('input-cat-end').value);
+      let textBgColor = formatColor(document.getElementById('input-text-bg').value);
+      
+      let borderColor = formatColor(document.getElementById('input-border-color').value);
+      let borderWidth = parseInt(document.getElementById('input-border-width').value) || 0;
+
+      const plateTarget = document.getElementById('capture-target');
+      plateTarget.style.borderColor = borderColor || '#b388ff';
+      plateTarget.style.borderWidth = borderWidth + 'px';
+
+      const bgLayer = document.getElementById('plate-bg');
+      bgLayer.style.top = (10 - borderWidth < 2 ? 2 : 10 - borderWidth) + 'px';
+      bgLayer.style.left = (10 - borderWidth < 2 ? 2 : 10 - borderWidth) + 'px';
+      bgLayer.style.right = (10 - borderWidth < 2 ? 2 : 10 - borderWidth) + 'px';
+      bgLayer.style.bottom = (10 - borderWidth < 2 ? 2 : 10 - borderWidth) + 'px';
+
+      document.getElementById('plate-text-box').style.backgroundColor = textBgColor || 'transparent';
+
+      const diffBox = document.getElementById('plate-diff');
+      let rawText = document.getElementById('input-diff-text').value.trim();
+      let formattedText = rawText;
+      const match = rawText.match(/^(\d+)(\+)?(\.\d+)?$/);
+
+      if (match) {
+        const baseNum = match[1];
+        const hasPlus = match[2] === '+';
+        const decPart = match[3];
+
+        if (hasPlus && decPart) {
+          formattedText = `${baseNum}<span class="diff-stacked-wrap"><span class="diff-stacked-plus">+</span><span class="diff-stacked-dec">${decPart}</span></span>`;
+        } else if (hasPlus) {
+          formattedText = `${baseNum}<span class="diff-plus">+</span>`;
+        } else if (decPart) {
+          formattedText = `${baseNum}<span class="diff-decimal">${decPart}</span>`;
+        } else {
+          formattedText = baseNum;
+        }
+      } else {
+        formattedText = rawText.replace(/\+/g, '<span class="diff-plus">+</span>').replace(/(\.\d+)/g, '<span class="diff-decimal">$1</span>');
+      }
+
+      diffBox.innerHTML = formattedText;
+      diffBox.style.backgroundColor = diffColor || '#9575cd';
+      diffBox.style.borderColor = diffColor || '#9575cd';
+      
+      document.getElementById('plate-bg').style.background = `linear-gradient(180deg, ${bgStart || '#ba68c8'} 0%, ${bgEnd || '#ab47bc'} 100%)`;
+      document.getElementById('plate-category').style.background = `linear-gradient(180deg, ${catStart || '#e1bee7'} 0%, ${catEnd || '#b39ddb'} 100%)`;
+
+      const logoType = document.querySelector('input[name="logo-type"]:checked').value;
+      if (logoType === 'dx') {
+        document.getElementById('badge-dx').style.display = 'flex';
+        document.getElementById('badge-std').style.display = 'none';
+      } else {
+        document.getElementById('badge-dx').style.display = 'none';
+        document.getElementById('badge-std').style.display = 'flex';
+      }
+    }
+
+    function savePreset() {
+      const presetData = {
+        title: document.getElementById('input-title').value,
+        artist: document.getElementById('input-artist').value,
+        category: document.getElementById('input-category').value,
+        catStart: document.getElementById('input-cat-start').value,
+        catEnd: document.getElementById('input-cat-end').value,
+        borderColor: document.getElementById('input-border-color').value,
+        borderWidth: document.getElementById('input-border-width').value,
+        bgStart: document.getElementById('input-bg-start').value,
+        bgEnd: document.getElementById('input-bg-end').value,
+        textBg: document.getElementById('input-text-bg').value,
+        diffText: document.getElementById('input-diff-text').value,
+        diffColor: document.getElementById('input-diff-color').value,
+        logoType: document.querySelector('input[name="logo-type"]:checked').value,
+        imageSrc: document.getElementById('plate-img').src
+      };
+
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(presetData));
+      const downloadAnchorNode = document.createElement('a');
+      downloadAnchorNode.setAttribute("href", dataStr);
+      downloadAnchorNode.setAttribute("download", (presetData.title || "maimai") + "_preset.json");
+      document.body.appendChild(downloadAnchorNode);
+      downloadAnchorNode.click();
+      downloadAnchorNode.remove();
+    }
+
+    function loadPreset(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const data = JSON.parse(e.target.result);
+          
+          if (data.title !== undefined) document.getElementById('input-title').value = data.title;
+          if (data.artist !== undefined) document.getElementById('input-artist').value = data.artist;
+          if (data.category !== undefined) document.getElementById('input-category').value = data.category;
+          if (data.catStart !== undefined) document.getElementById('input-cat-start').value = data.catStart;
+          if (data.catEnd !== undefined) document.getElementById('input-cat-end').value = data.catEnd;
+          if (data.borderColor !== undefined) document.getElementById('input-border-color').value = data.borderColor;
+          if (data.borderWidth !== undefined) document.getElementById('input-border-width').value = data.borderWidth;
+          if (data.bgStart !== undefined) document.getElementById('input-bg-start').value = data.bgStart;
+          if (data.bgEnd !== undefined) document.getElementById('input-bg-end').value = data.bgEnd;
+          if (data.textBg !== undefined) document.getElementById('input-text-bg').value = data.textBg;
+          if (data.diffText !== undefined) document.getElementById('input-diff-text').value = data.diffText;
+          if (data.diffColor !== undefined) document.getElementById('input-diff-color').value = data.diffColor;
+          
+          if (data.logoType !== undefined) {
+            document.querySelector(`input[name="logo-type"][value="${data.logoType}"]`).checked = true;
+          }
+          if (data.imageSrc !== undefined) {
+            document.getElementById('plate-img').src = data.imageSrc;
+          }
+
+          updatePlate(); 
+          document.getElementById('preset-upload').value = "";
+          
+        } catch (error) {
+          alert("잘못된 형식의 프리셋 파일입니다. (JSON 파싱 에러)");
+          console.error(error);
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    window.onload = function() {
+      // 🌟 초기화 시 투명한 1x1 이미지 배치를 통해 엑스박스 아이콘 방지
+      document.getElementById('plate-img').src = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+      updatePlate();
+    };
+
+    function downloadPNG() {
+      const target = document.getElementById('capture-target');
+      
+      html2canvas(target, {
+        useCORS: true,
+        scale: 2,
+        backgroundColor: null
+      }).then(canvas => {
+        const link = document.createElement('a');
+        link.download = (document.getElementById('input-title').value || "maimai") + '_custom_plate.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      }).catch(err => {
+        console.error('캡처 에러:', err);
+        alert('이미지 저장에 실패했습니다.');
+      });
+    }
+  </script>
+</body>
+</html>

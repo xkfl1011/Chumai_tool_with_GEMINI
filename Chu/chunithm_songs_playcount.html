@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>CHUNITHM PLAYCOUNT</title>
+    <style>
+        body { font-family: 'Malgun Gothic', sans-serif; padding: 30px; background-color: #f4f4f9; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 8px 16px rgba(0,0,0,0.1); }
+        h2 { color: #333; text-align: center; }
+        
+        .upload-section { text-align: center; margin: 20px 0; padding: 20px; border: 2px dashed #ccc; border-radius: 8px; background: #fafafa; }
+        input[type="file"] { font-size: 16px; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 14px; border-bottom: 1px solid #ddd; text-align: left; vertical-align: middle; }
+        th { background-color: #4a4e69; color: white; position: sticky; top: 0; z-index: 10; }
+        
+        /* 메인 행(곡 제목 있는 줄) 스타일 */
+        tr.main-row { cursor: pointer; transition: background-color 0.2s; }
+        tr.main-row:hover { background-color: #f1f1f1; }
+        .rank { font-weight: bold; color: #4a4e69; font-size: 1.1em; width: 60px; text-align: center;}
+        
+        /* 테이블 선 어긋남 해결 */
+        .count-td { padding: 0 !important; } /* 셀 자체의 여백을 없앰 */
+        .count-wrapper { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            width: 100%; 
+            padding: 14px; /* 내부 div에 여백을 줘서 선이 어긋나지 않게 맞춤 */
+            box-sizing: border-box;
+            font-weight: bold; 
+            color: #333;
+        }
+        
+        /* 화살표 애니메이션 */
+        .expand-btn { font-size: 0.9em; color: #888; transition: transform 0.3s; pointer-events: none; }
+        tr.main-row.expanded .expand-btn { transform: rotate(90deg); color: #4a4e69; }
+
+        /* 상세 정보(폴더)가 열리는 행 스타일 */
+        tr.details-row { display: none; background-color: #fafafa; border-bottom: 2px solid #eee; }
+        .details-content { display: flex; gap: 10px; padding: 15px 14px 15px 40px; flex-wrap: wrap; }
+        
+        /* 난이도별 색상 박스 */
+        .diff-box { padding: 6px 12px; border-radius: 6px; color: white; font-weight: bold; font-size: 0.9em; text-shadow: 0 1px 2px rgba(0,0,0,0.2); box-shadow: 0 2px 4px rgba(0,0,0,0.1);}
+        .diff-BASIC { background-color: #1eb393; }
+        .diff-ADVANCED { background-color: #ff7e00; }
+        .diff-EXPERT { background-color: #e35454; }
+        .diff-MASTER { background-color: #bf6aff; }
+        
+        /* ULTIMA 전용 스타일 */
+        .diff-ULTIMA { 
+            background: linear-gradient(to bottom, #333333 0%, #282828 50%, #000000 50%); 
+            color: #ff3a3a; 
+            text-shadow: none; 
+        } 
+        
+        .no-detail { color: #999; font-size: 0.9em; padding: 5px; }
+        
+        /* 에러 메시지 */
+        #errorMessage { color: #e35454; text-align: center; margin-top: 10px; font-weight: bold; display: none;}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>CHUNITHM PLAYCOUNT</h2>
+        <div class="upload-section">
+            <input type="file" id="fileInput" accept=".json">
+            <p style="color: #666; font-size: 14px; margin-top: 10px;">곡을 클릭하면 난이도별 상세 플레이 횟수가 열립니다.</p>
+            <p id="errorMessage"></p>
+        </div>
+        
+        <table id="resultTable" style="display:none;">
+            <thead>
+                <tr>
+                    <th style="text-align: center;"></th>
+                    <th>TITLE</th>
+                    <th>TOTAL</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+
+    <script>
+        document.getElementById('fileInput').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            const errorMsg = document.getElementById('errorMessage');
+            const resultTable = document.getElementById('resultTable');
+            
+            if (!file) return;
+
+            errorMsg.style.display = 'none';
+            resultTable.style.display = 'none';
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    
+                    // 총 플레이 횟수 기준으로 내림차순 정렬
+                    data.sort((a, b) => {
+                        const countA = (a.totalPlayCount !== undefined) ? a.totalPlayCount : (a.playCount || 0);
+                        const countB = (b.totalPlayCount !== undefined) ? b.totalPlayCount : (b.playCount || 0);
+                        return countB - countA;
+                    });
+
+                    renderTable(data);
+                } catch (err) {
+                    errorMsg.innerText = "❌ JSON 파일을 읽는 데 실패했습니다. 파일이 손상되었거나 끝부분이 잘려있을 수 있습니다.";
+                    errorMsg.style.display = 'block';
+                    console.error("JSON 파싱 에러:", err);
+                }
+            };
+            
+            reader.onerror = function() {
+                errorMsg.innerText = "❌ 파일을 읽을 수 없습니다.";
+                errorMsg.style.display = 'block';
+            };
+
+            reader.readAsText(file);
+        });
+
+        function renderTable(data) {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+            
+            let currentRank = 1;
+            const diffOrder = ["BASIC", "ADVANCED", "EXPERT", "MASTER", "ULTIMA"];
+
+            data.forEach((song) => {
+                const count = (song.totalPlayCount !== undefined) ? song.totalPlayCount : (song.playCount || 0);
+                
+                if (count === 0) return; 
+
+                // 1. 메인 행
+                const tr = document.createElement('tr');
+                tr.className = 'main-row';
+                tr.innerHTML = `
+                    <td class="rank">${currentRank}</td>
+                    <td style="font-weight: bold;">${song.title}</td>
+                    <td class="count-td">
+                        <div class="count-wrapper">
+                            <span>${count}회</span> 
+                            <span class="expand-btn">▶</span>
+                        </div>
+                    </td>
+                `;
+
+                // 2. 상세 정보 행
+                const detailsTr = document.createElement('tr');
+                detailsTr.className = 'details-row';
+                
+                let detailsHtml = '<div class="details-content">';
+                
+                if (song.details && typeof song.details === 'object' && Object.keys(song.details).length > 0) {
+                    diffOrder.forEach(diff => {
+                        if (song.details[diff]) {
+                            detailsHtml += `<div class="diff-box diff-${diff}">${diff} ${song.details[diff]}회</div>`;
+                        }
+                    });
+                } else {
+                    detailsHtml += `<div class="no-detail">상세 난이도 기록이 없습니다.</div>`;
+                }
+                
+                detailsHtml += '</div>';
+                // 패딩을 0으로 줘서 여백을 초기화하고 안쪽 div에서 컨트롤
+                detailsTr.innerHTML = `<td colspan="3" style="padding: 0;">${detailsHtml}</td>`;
+
+                // 3. 클릭 이벤트 (토글)
+                tr.addEventListener('click', () => {
+                    const isExpanded = tr.classList.toggle('expanded');
+                    detailsTr.style.display = isExpanded ? 'table-row' : 'none';
+                });
+
+                tbody.appendChild(tr);
+                tbody.appendChild(detailsTr);
+                currentRank++;
+            });
+            
+            document.getElementById('resultTable').style.display = 'table';
+        }
+    </script>
+</body>
+</html>
