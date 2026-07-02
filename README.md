@@ -28,6 +28,7 @@ Usage
 Tech Stack
 * Vanilla JavaScript (ES6+)
 * HTML5 / CSS3
+* **GEMINI**
 
 Notices
 * This is a fan-made project and unofficial tool and is not affiliated with SEGA.
